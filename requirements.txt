@@ -1,0 +1,20 @@
+openai
+numpy
+torch
+transformers
+optimum
+# jax
+# jaxlib
+# flax
+# git+https://github.com/sanchit-gandhi/whisper-jax.git
+python-dotenv
+gradio
+llama-index-core
+llama-index-readers-file
+llama-index-embeddings-openai
+llama-index-llms-azure-openai
+llama-index-embeddings-azure-openai
+llama-index-vector-stores-azurecosmosmongo
+markdown
+semantic-kernel
+pymongo
