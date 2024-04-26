@@ -1,12 +1,8 @@
 openai
 numpy
-torch
+torch==2.2.2
 transformers
 optimum
-# jax
-# jaxlib
-# flax
-# git+https://github.com/sanchit-gandhi/whisper-jax.git
 python-dotenv
 gradio
 llama-index-core
@@ -16,5 +12,4 @@ llama-index-llms-azure-openai
 llama-index-embeddings-azure-openai
 llama-index-vector-stores-azurecosmosmongo
 markdown
-semantic-kernel
 pymongo
