@@ -151,14 +151,5 @@ class DocumentLoader:
                     docs = reader.load_data_from_source_and_store()
                     current_document = docs.load_data(reader.source_file)
                     documents.extend(current_document)                    
-                    
-                    # try:
-                    #     # docs = list(reader.load_data(input_files=[full_path]))
-                    #     docs = reader.load_data_from_source_and_store()
-                    #     current_document = docs.load_data(reader.source_file)
-                    #     documents.extend(current_document)
-                        
-                    # except Exception as e:
-                    #     print(f"Failed to load document from '{filename}'. Error: {e}")
 
         return documents
