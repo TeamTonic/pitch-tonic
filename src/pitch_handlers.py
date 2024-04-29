@@ -2,12 +2,12 @@
 import json
 from src.pitch_helper import PitchHelper
 from src.pitch_tester import PitchTester
-from src.pitch_trainer import pass
+from src.pitch_trainer import PitchTrainer
 from src.upsert_retrieve import AzureCosmosDBMongoDBVectorSearch
 # from src.transcribetonic import TranscribeTonic
 from src.utilities import Transcriber
 from src.utilities import MessageFormatter
-from global_variables import pitch_tester_system_prompt, pitch_tester_easy , pitch_tester_medium , pitch_tester_hard , pitch_tester_extreme, pitch_tester_anq_prompt , pitch_tester_anq_easy , pitch_tester_anq_medium , pitch_tester_anq_hard , pitch_tester_anq_extreme
+from global_variables import pitch_tester_system_prompt, pitch_tester_easy , pitch_tester_medium , pitch_tester_hard , pitch_tester_extreme, pitch_tester_anq_prompt , pitch_tester_anq_easy , pitch_tester_anq_medium , pitch_tester_anq_hard , pitch_tester_anq_extreme, pitch_trainer_easy, pitch_trainer_extreme, pitch_trainer_system_prompt, pitch_trainer_medium, pitch_helper_system_prompt, pitch_trainer_hard
 from llama_index.core import PromptTemplate
 
 
@@ -22,6 +22,14 @@ class Handler:
         "{context_str}"
         "\n---------------------\n"
         "Given this information, {difficulty} please create a complete question:"
+    )
+
+    evaluation_template = PromptTemplate(
+        "We have provided context information below. \n"
+        "---------------------\n"
+        "{context_str}"
+        "\n---------------------\n"
+        "Given this information, {difficulty} please create a complete evaluation:"
     )
 
     def __init__(self):
@@ -46,7 +54,7 @@ class Handler:
             return "Unable to retrieve relevant context. Please try a different query."
 
         # Create text prompt based on the retrieved context and difficulty
-        question = self.qa_template.format(context_str=json.dumps(context), difficulty=difficulty)
+        question = self.anq_template.format(context_str=json.dumps(context), difficulty=difficulty)
         
         return question
 
@@ -148,9 +156,44 @@ class Handler:
             testquestion = self.create_question(query_str=selected_prompt)
             return testquestion
 
-    def pitch_train_handler(audio_location:str, userquery:str = ""):
-        pass
+    def pitch_train_handler(self, difficulty: str, audio_location:str,  userquery:str = ""):
 
+        # Transcribe the audio input
+        transcription = Transcriber.transcriber(audio_location)['text']
+
+        # Combine transcribed text with any additional user input
+        combined_text = transcription
+        if userquery:
+            combined_text += " " + userquery
+        
+        difficulty = {
+            'easy': pitch_trainer_easy,
+            'medium': pitch_trainer_medium,
+            'hard': pitch_trainer_hard,
+            'extreme': pitch_trainer_extreme
+            }
+        
+    # Check if it's the first query and set prompts accordingly
+    # if Handler.first_query:
+        # Use initial prompts for the first query
+        selected_prompt = pitch_trainer_system_prompt + " " + difficulty.get(difficulty, "")
+    #   Handler.first_query = False
+        # Initialize the PitchTester with the combined system prompt
+        pitch_trainer = PitchTrainer(system_prompt=selected_prompt)
+        message_formatter = MessageFormatter(pitch_trainer.chat_memory)
+        context = self.retriever.search(combined_text)
+
+        if context is None:
+            return "Unable to retrieve relevant context. Please try a different query."
+
+        # Formulate the query as a set of structured chat messages
+        chat_messages = message_formatter.format_user_query(combined_text)
+        evaluation = self.evaluation_template.format(context_str=json.dumps(context), difficulty=difficulty)
+
+        # Process these messages and collect the response
+        response = pitch_trainer.chat_with_Trainer(chat_messages)
+        response += evaluation + self.create_question(userquery = response, difficulty=difficulty)           
+        return response
 
     @staticmethod
     def reset_session():
