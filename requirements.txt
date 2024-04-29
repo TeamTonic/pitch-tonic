@@ -1,0 +1,17 @@
+openai
+numpy
+torch==2.2.2
+transformers
+optimum
+python-dotenv
+gradio
+llama-index-core
+llama-index-readers-file
+llama-index-embeddings-openai
+llama-index-llms-azure-openai
+llama-index-embeddings-azure-openai
+llama-index-embeddings-voyageai
+llama-index-vector-stores-azurecosmosmongo
+llama-index-storage-docstore-mongodb
+markdown
+pymongo
