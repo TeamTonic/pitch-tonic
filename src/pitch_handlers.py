@@ -1,44 +1,48 @@
-# ./src/pitch.py
-
-# from llama_index.embeddings.openai import OpenAIEmbedding
-# from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
-from llama_index.embeddings.voyageai import VoyageEmbedding # https://github.com/run-llama/llama_index/blob/main/llama-index-integrations/embeddings/llama-index-embeddings-voyageai/llama_index/embeddings/voyageai/base.py
-from llama_index.llms.azure_openai import AzureOpenAI
-import os
-import dotenv
-dotenv.load_dotenv()
-
-from src.transcribetonic import TranscribeTonic
-
-# get API key and create embeddings
-voyage_api_key = os.environ.get("VOYAGE_API_KEY")
-aoai_endpoint = os.environ['AZURE_OPENAI_ENDPOINT']
-aoai_key = os.environ['AZURE_OPENAI_API_KEY']   
-aoai_version = os.environ['AZURE_OPENAI_VERSION']  
-
-embedding_model_name = "voyage-finance-2"  # Please check https://docs.voyageai.com/docs/embeddings for the available models
-
-embed_model = VoyageEmbedding(
-    model_name=embedding_model_name, voyage_api_key=voyage_api_key
-)
-
-# embeddings = embed_model.get_query_embedding("What is llamaindex?")
-
-# aoai_api_key = "YOUR_AZURE_OPENAI_API_KEY"
-# aoai_endpoint = "YOUR_AZURE_OPENAI_ENDPOINT"
-# aoai_api_version = "2023-07-01-preview"
-llm = AzureOpenAI(
-    model="YOUR_AZURE_OPENAI_COMPLETION_MODEL_NAME",
-    deployment_name="YOUR_AZURE_OPENAI_COMPLETION_DEPLOYMENT_NAME",
-    api_key=aoai_key,
-    azure_endpoint=aoai_endpoint,
-    api_version=aoai_version,
-    )
+# ./src/pitch_handlers.py
+from src.pitch_helper import PitchHelper
+from src.pitch_tester import pass
+from src.pitch_trainer import pass
+# from src.transcribetonic import TranscribeTonic
+from src.utilities import Transcriber
+from src.utilities import MessageFormatter
 
 class Handler:
     
-    def pitch_handler(audio_location:str, user_query:str = ""):
-        pass
+    def pitch_helper_handler(audio_input:str, additional_text):
+        """
+        Processes audio input through transcription, combines it with any additional text,
+        and uses PitchHelper to generate a helpful response in a chat context.
+
+        Args:
+            audio_input (str): File path to audio input.
+            additional_text (str): Additional text input from the user.
+
+        Returns:
+            str: The combined and processed response from the pitch helper system.
+        """
+        # Step 1: Transcribe the audio
+        transcription = Transcriber.transcriber(audio_location=audio_input)['text']
+
+        # Step 2: Combine transcribed audio with additional text
+        combined_text = transcription
+        if additional_text:
+            combined_text += " " + additional_text
+
+        # Step 3: Initialize PitchHelper and MessageFormatter
+        pitch_helper = PitchHelper()
+        message_formatter = MessageFormatter(pitch_helper.chat_memory)
+
+        # Step 4: Format the combined text as a user query in the form of ChatMessage
+        chat_messages = message_formatter.format_user_query(combined_text)
+
+        # Step 5: Use PitchHelper to get responses
+        response = pitch_helper.chat_with_helper(chat_messages)
+
+        # Step 6: Append system's response to chat history
+        message_formatter.add_system_response(response)
+
+        # Step 7: Return response
+        return response
     
     def pitch_train_handler(audio_location:str, pitch_type:bool , difficulty_level:bool, userquery:str = ""):
-        oaiclient = llm
+        pass

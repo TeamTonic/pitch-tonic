@@ -1,5 +1,6 @@
 openai
 numpy
+tiktoken
 torch==2.2.2
 transformers
 optimum

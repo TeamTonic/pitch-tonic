@@ -33,7 +33,6 @@ from llama_parse import LlamaParse
 
 import os
 
-
 class DataProcessor:
     def __init__(self,source_file:str):
         if isinstance(source_file, str): # Check if the source is a string

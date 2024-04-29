@@ -10,11 +10,7 @@ from llama_index.core.llms.llm import LLM
 from llama_index.core.memory.types import DEFAULT_CHAT_STORE_KEY, BaseMemory
 from llama_index.core.storage.chat_store import BaseChatStore, SimpleChatStore
 from llama_index.core.utils import get_tokenizer
-
-DEFAULT_TOKEN_LIMIT_FULL_TEXT_RATIO = 0.75
-DEFAULT_TOKEN_LIMIT_FULL_TEXT = 2000
-SUMMARIZE_PROMPT = "The following is a conversation between the user and assistant. Write a concise summary about the contents of this conversation."
-
+from global_variables import DEFAULT_TOKEN_LIMIT_FULL_TEXT, DEFAULT_TOKEN_LIMIT_FULL_TEXT_RATIO, SUMMARIZE_PROMPT
 
 # TODO: Add option for last N user/assistant history interactions instead of token limit
 class ChatSummaryMemoryBuffer(BaseMemory):
