@@ -14,9 +14,21 @@ embedding_model_name = "voyage-finance-2"
 engine="GPT4"
 
 title = "Welcome to Pitch Tonic"
-description = """This demo helps you practice your pitch in two way : 
+description = """This demo helps you practice your pitch in two ways : 
 1. with help and evaluation of your answers to tough questions.
 2. with real time support brining you precise answers to tough investor questions.
 upload your documents to get started
 """
-pitch_tester_system_prompt
+article_helper = ("")
+article_trainer = ("")
+article_tester = ("")
+pitch_tester_system_prompt = ("")
+pitch_tester_easy = ("")
+pitch_tester_medium = ("")
+pitch_tester_hard = ("")
+pitch_tester_extreme = ("")
+pitch_tester_anq_prompt = ("")
+pitch_tester_anq_easy = ("")
+pitch_tester_anq_medium = ("")
+pitch_tester_anq_hard = ("") 
+pitch_tester_anq_extreme = ("")

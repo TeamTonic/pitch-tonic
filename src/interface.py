@@ -3,7 +3,7 @@
 import gradio as gr
 from src.transcribetonic import TranscribeTonic
 from src.pitch_handlers import Handler
-from global_variables import title , description
+from global_variables import title , description , article_trainer , article_helper , article_tester
 
 transcriber = TranscribeTonic()
 
@@ -20,7 +20,7 @@ pitch_trainer = gr.Interface(
     allow_flagging="never",
     title=title,
     description=description,
-#   article=article,
+    article=article_trainer,
 )
 
 
@@ -32,13 +32,12 @@ pitch_tester = gr.Interface(
         gr.Textbox(label="Add Additional Information Via Text Here", ),
     ],
     outputs=[
-        gr.Textbox(label="Tonic Pitch Trainer", multimodal=True),
-        # gr.MultimodalTextbox(label="Tonic Pitch Trainer",file_types=["audio","text"],),
+        gr.Textbox(label="Tonic Pitch Trainer"),
     ],
     allow_flagging="never",
     title=title,
     description=description,
-#   article=article,
+    article=article_tester,
 )
 
 pitch_helper = gr.Interface(
@@ -49,13 +48,12 @@ pitch_helper = gr.Interface(
         ],
     outputs=[
         # gr.Textbox(label="Tonic Pitch Helper", multimodal=True),
-        # gr.Textbox(label="Tonic Pitch Helper", multimodal=True),
-        gr.MultimodalTextbox(label="Tonic Pitch Trainer",file_types=["audio","text"],),
+        gr.Textbox(label="Tonic Pitch Trainer"),
     ],
     allow_flagging="never",
     title=title,
     description=description,
-#   article=article,
+    article=article_helper,
 )
 
 microphone_chunked = gr.Interface(
