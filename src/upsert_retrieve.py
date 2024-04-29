@@ -1,3 +1,5 @@
+# src/upsert_retrieve.py
+
 import pymongo
 from llama_index.core import VectorStoreIndex
 from llama_index.core import StorageContext
@@ -11,10 +13,9 @@ from src.dataloader import DataProcessor, DocumentLoader
 import os
 
 class DocumentIndexer:
-    """Class for indexing documents using MongoDB Atlas."""
+    """Class for indexing documents using MongoDB Cosmos"""
     def __init__(self, mongo_uri:str, db_name:str = "tonic" ):
         self.mongo_uri = mongo_uri
-     # Use AZURE COSMOS COMMANDS TO CREATE A DATABASE AND A COLLECTION   
         self.mongo_kvstore = MongoDocumentStore.from_uri(mongo_uri, db_name) 
         self.mongodb_client = pymongo.MongoClient(self.mongo_uri)
         self.storage_context = StorageContext.from_defaults(vector_store=self.mongo_kvstore)
