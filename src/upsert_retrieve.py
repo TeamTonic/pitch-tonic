@@ -15,6 +15,10 @@ from src.dataloader import DataProcessor, DocumentLoader
 import os
 from llama_index.core.ingestion import IngestionPipeline, IngestionCache
 from llama_index.core.ingestion.cache import IngestionCache
+from pydantic import BaseModel
+from llama_index.embeddings.voyageai import VoyageEmbedding
+from llama_index.core.node_parser import SentenceSplitter, MarkdownNodeParser
+
 
 class DocumentIndexer:
     """ Class for indexing documents using MongoDB Cosmos with unique database and collection names. """
@@ -28,33 +32,44 @@ class DocumentIndexer:
         self.voyage_api_key = os.environ.get("VOYAGE_API_KEY")
         self.mongo_docstore = MongoDocumentStore(self.mongodb_client)
         # Return Client
+        self.embedding_model_name = os.environ.get("")
         self.mongodb_kvstore = MongoDBKVStore(self.mongodb_client).from_uri(uri = self.mongo_uri, db_name = self.db_name)
         self.mongo_vectorstore = AzureCosmosDBMongoDBVectorSearch(mongodb_client=self.mongodb_client, db_name=self.db_name, collection_name=self.collection_name)
         # Settings 
         self.embed_model = VoyageEmbedding(model_name=embedding_model_name, voyage_api_key=self.voyage_api_key)
         self.storage_context = StorageContext.from_defaults(index_store=self.mongodb_kvstore, vector_store=self.mongo_vectorstore, docstore=self.mongo_docstore)
-        self.transformations = transformations
+        self.transformations = [
+        SentenceSplitter(chunk_size=450, chunk_overlap=200), MarkdownNodeParser() , VoyageEmbedding(model_name=embedding_model_name, voyage_api_key=self.voyage_api_key) 
+        ]
         # Get Documents Raw Text As List
         self.documents = DocumentLoader().load_documents_from_folder("./add_your_files_here")
 
     def index_documents(self):
+
+        # Load documents
+        documents = self.documents
+        
         ingest = IngestionPipeline(
                     transformations=self.transformations,
                     cache=IngestionCache(
                         cache= self.mongodb_kvstore
                         )
                     )
-        nodes = ingest.run(documents=self.documents)
-        for node in nodes:
-            node_embedding = self.embed_model.get_text_embedding(
-            node.get_content(metadata_mode="all")
-            )
-            node.embedding = node_embedding   
-        self.mongo_vectorstore.add(nodes=nodes)
-        #  (nodes=nodes, storage_context=self.storage_context)
-        # index = AzureCosmosDBMongoDBVectorSearch(documents=nodes, storage_context=self.storage_context)
-        return self.mongo_vectorstore
 
+        # Run ingestion pipeline to process and transform documents into nodes
+        nodes = ingest.run(documents=documents)
+        
+        # Embed nodes and store them
+        for node in nodes:
+            if isinstance(node):
+                content = node.from_node(metadata_mode=BaseModel.MetadataMode.ALL)
+                embedding = self.embed_model.get_text_embedding(content)
+                content.embedding = embedding  # Set the embedding
+                
+                # Store each node with its new embedding using MongoDB
+                self.mongodb_kvstore.add(node=content)  
+
+        return self.mongodb_kvstore , nodes
 class DocumentRetriever:
     """Class for retrieving documents using Azure CosmosDB MongoDB."""
     def __init__(self, connection_string, db_name, collection_name):

@@ -19,3 +19,4 @@ pymongo
 pillow
 python-pptx
 docx2txt
+pydantic

@@ -35,12 +35,9 @@ class Handler:
         "Given this information, {difficulty} please create a complete evaluation:"
     )
 
-    def __init__(self, retriever, index):
+    def __init__(self):
         # self.retriever = AzureCosmosDBMongoDBVectorSearch()
         self.chat_memory = []
-        # self.retriever = DocumentRetriever()
-        self.retriever = retriever
-        self.index = index
 
     def create_question(self, query_str="", difficulty="extreme"):
         """
@@ -65,7 +62,7 @@ class Handler:
         
         return question
 
-    def pitch_helper_handler(self, audio_input:str, additional_text):
+    def pitch_helper_handler(self,drop_down_value:str,audio_input:str, additional_text):
         """
         Processes audio input through transcription, combines it with any additional text,
         and uses PitchHelper to generate a helpful response in a chat context.
@@ -89,8 +86,34 @@ class Handler:
         current_user_message = ChatMessage(
             content=combined_text,
             )
-        query_engine = self.index.as_query_engine(similarity_top_k=5)
-        response = query_engine.query(combined_text)
+        
+        import os
+        
+        azure_conn_string = os.getenv("AZURE_COSMOSDB_MONGODB_URI")
+        client = MongoClient(os.getenv('AZURE_COSMOSDB_MONGODB_URI'))
+        
+        # store = AzureCosmosDBMongoDBVectorSearch(
+        #     client,
+        #     # db_name=os.getenv('MONGODB_DATABASE'),
+        #     # collection_name=os.getenv('MONGODB_VECTORS'), # this is where your embeddings will be stored
+        #     # index_name=os.getenv('MONGODB_VECTOR_INDEX') # this is the name of the index you will need to create
+        #     # db_name="Tonic",
+        #     # collection_name="sample_collection", # this is where your embeddings will be stored
+        #     # index_name="sample_vector_index" # this is the name of the index you will need to create
+        # )
+        store = AzureCosmosDBMongoDBVectorSearch(
+            client,
+            db_name="tonic-data",
+            collection_name="tonic-collection", # this is where your embeddings will be stored
+            # index_name=os.getenv('MONGODB_VECTOR_INDEX') # this is the name of the index you will need to create
+            # db_name="Tonic",
+            # collection_name="sample_collection", # this is where your embeddings will be stored
+            index_name="Sample" # this is the name of the index you will need to create
+        )
+        
+        index = VectorStoreIndex.from_vector_store(store)
+        query_engine = index.as_query_engine(similarity_top_k=20)
+        response = query_engine.query("What does the author think of web frameworks?")
         print(response)
         
 
@@ -99,6 +122,23 @@ class Handler:
         
         self.chat_memory.append(current_user_message)
 
+        # Initialize PitchHelper and MessageFormatter
+        # pitch_helper = PitchHelper(
+        #     chat_memory=self.chat_memory,
+        #     index=retriever,
+        # )
+        # message_formatter = MessageFormatter(pitch_helper.chat_memory)
+
+        # Format the combined text as a user query in the form of ChatMessage
+        # chat_messages = message_formatter.format_user_query(combined_text)
+
+        # Use PitchHelper to get responses
+        # response = pitch_helper.chat_with_helper(chat_messages)
+
+        # Append system's response to chat history
+        # message_formatter.add_system_response(response)
+
+        # Return response
         return response.response
     
     def pitch_test_handler(self, audio_input: str, difficulty: str, additional_text: str = ""):

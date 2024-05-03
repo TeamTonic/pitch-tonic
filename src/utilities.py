@@ -102,6 +102,7 @@ class MessageFormatter:
 
         Parameters:
             summarizer (ChatSummarizer): Instance of ChatSummarizer.
+
         """
         self.summarizer = summarizer
 
