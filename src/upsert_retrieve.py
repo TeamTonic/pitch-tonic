@@ -3,26 +3,57 @@
 import pymongo
 from llama_index.core import VectorStoreIndex
 from llama_index.core import StorageContext
-from llama_index.core import SimpleDirectoryReader
-from llama_index.vector_stores.azurecosmosmongo import AzureCosmosDBMongoDBVectorSearch
-from llama_index.storage.docstore.mongodb import MongoDocumentStore, MongoDBKVStore
-
+# from llama_index.core import SimpleDirectoryReader
+from llama_index.vector_stores.azurecosmosmongo import AzureCosmosDBMongoDBVectorSearch # https://github.com/run-llama/llama_index/blob/main/llama-index-integrations/vector_stores/llama-index-vector-stores-azurecosmosmongo/llama_index/vector_stores/azurecosmosmongo/base.py
+from llama_index.storage.docstore.mongodb import MongoDocumentStore # https://github.com/run-llama/llama_index/blob/main/llama-index-integrations/storage/docstore/llama-index-storage-docstore-mongodb/llama_index/storage/docstore/mongodb/base.py
+from llama_index.storage.kvstore.mongodb import MongoDBKVStore # https://github.com/run-llama/llama_index/blob/main/llama-index-integrations/storage/kvstore/llama-index-storage-kvstore-mongodb/llama_index/storage/kvstore/mongodb/base.py
+from llama_index.embeddings.voyageai import VoyageEmbedding
+from src.utilities import generate_unique_name
+from global_variables import embedding_model_name
 # from llama_index.vector_stores.mongodb import MongoDBAtlasVectorSearch
-# from llama_index.vector_stores
 from src.dataloader import DataProcessor, DocumentLoader
 import os
+from llama_index.core.ingestion import IngestionPipeline, IngestionCache
+from llama_index.core.ingestion.cache import IngestionCache
 
 class DocumentIndexer:
-    """Class for indexing documents using MongoDB Cosmos"""
-    def __init__(self, mongo_uri:str, db_name:str = "tonic" ):
+    """ Class for indexing documents using MongoDB Cosmos with unique database and collection names. """
+    def __init__(self, transformations, mongo_uri: str, db_name: str = "tonic", collection_name: str = "tonic"):
         self.mongo_uri = mongo_uri
-        self.mongo_kvstore = MongoDocumentStore.from_uri(mongo_uri, db_name) 
+        # Using unique names
+        self.db_name = db_name
+        self.collection_name = collection_name
         self.mongodb_client = pymongo.MongoClient(self.mongo_uri)
-        self.storage_context = StorageContext.from_defaults(vector_store=self.mongo_kvstore)
-        
-    def index_documents(self, document_loader=DocumentLoader()):
-        index = VectorStoreIndex.from_documents(document_loader, storage_context=self.storage_context)
-        return index
+        # Create KV Store Using Client
+        self.voyage_api_key = os.environ.get("VOYAGE_API_KEY")
+        self.mongo_docstore = MongoDocumentStore(self.mongodb_client)
+        # Return Client
+        self.mongodb_kvstore = MongoDBKVStore(self.mongodb_client).from_uri(uri = self.mongo_uri, db_name = self.db_name)
+        self.mongo_vectorstore = AzureCosmosDBMongoDBVectorSearch(mongodb_client=self.mongodb_client, db_name=self.db_name, collection_name=self.collection_name)
+        # Settings 
+        self.embed_model = VoyageEmbedding(model_name=embedding_model_name, voyage_api_key=self.voyage_api_key)
+        self.storage_context = StorageContext.from_defaults(index_store=self.mongodb_kvstore, vector_store=self.mongo_vectorstore, docstore=self.mongo_docstore)
+        self.transformations = transformations
+        # Get Documents Raw Text As List
+        self.documents = DocumentLoader().load_documents_from_folder("./add_your_files_here")
+
+    def index_documents(self):
+        ingest = IngestionPipeline(
+                    transformations=self.transformations,
+                    cache=IngestionCache(
+                        cache= self.mongodb_kvstore
+                        )
+                    )
+        nodes = ingest.run(documents=self.documents)
+        for node in nodes:
+            node_embedding = self.embed_model.get_text_embedding(
+            node.get_content(metadata_mode="all")
+            )
+            node.embedding = node_embedding   
+        self.mongo_vectorstore.add(nodes=nodes)
+        #  (nodes=nodes, storage_context=self.storage_context)
+        # index = AzureCosmosDBMongoDBVectorSearch(documents=nodes, storage_context=self.storage_context)
+        return self.mongo_vectorstore
 
 class DocumentRetriever:
     """Class for retrieving documents using Azure CosmosDB MongoDB."""
@@ -34,53 +65,5 @@ class DocumentRetriever:
             db_name=db_name,
             collection_name=collection_name)
     
-    def search(self, query, top_k=10):
+    def search(self, query="What's so cool about Tonic-AI?", top_k=10):
         return self.vector_store.search(query, top_k)
-
-# Usage example for both classes:
-
-# # Assuming a setup for DocumentIndexer
-# mongo_uri = os.getenv("MONGO_URI", "mongodb+srv://<username>:<password>@<host>?retryWrites=true&w=majority")
-# indexer = DocumentIndexer(mongo_uri)
-
-# # Assuming you have a document loader set up
-# document_loader = DocumentLoader()  # Assuming this loader is already configured
-# index = indexer.index_documents(document_loader)
-
-# # Assuming a setup for DocumentRetriever
-# azure_conn_string = os.getenv("AZURE_CONNECTION_STRING", "YOUR_AZURE_COSMOSDB_MONGODB_URI")
-# retriever = DocumentRetriever(azure_conn_string, "demo_vectordb", "paul_graham_essay")
-
-# # Use a sample query vector to search
-# sample_query_vector = [0.1, 0.2, 0.3]  # This needs to be replaced with an actual data vector
-# search_results = retriever.search(sample_query_vector, top_k=5)
-# print(search_results)
-
-# #Vector Store
-# # mongo_uri = os.environ["MONGO_URI"]
-# mongo_uri = (
-#     "mongodb+srv://<username>:<password>@<host>?retryWrites=true&w=majority"
-# )
-
-# mongodb_client = pymongo.MongoClient(mongo_uri)
-# store = MongoDBAtlasVectorSearch(mongodb_client)
-# storage_context = StorageContext.from_defaults(vector_store=store)
-# docs = DocumentLoader()
-# #     input_files=["./data/10k/uber_2021.pdf"]
-# # ).load_data()
-# index = VectorStoreIndex.from_documents(
-#      docs, storage_context=storage_context
-# # )
-
-
-# # Vector Search
-# # Set up the connection string with your Azure CosmosDB MongoDB URI
-# connection_string = "YOUR_AZURE_COSMOSDB_MONGODB_URI"
-# mongodb_client = pymongo.MongoClient(connection_string)
-
-# # Create an instance of AzureCosmosDBMongoDBVectorSearch
-# vector_store = AzureCosmosDBMongoDBVectorSearch(
-#     mongodb_client=mongodb_client,
-#     db_name="demo_vectordb",
-#     collection_name="paul_graham_essay",
-# )

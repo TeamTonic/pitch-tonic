@@ -3,7 +3,7 @@
 from src.utilities import ChatSummarizer
 from src.upsert_retrieve import DocumentRetriever, DocumentIndexer
 from global_variables import pitch_helper_system_prompt
-from src.azurellm import llm
+from src.utilities import AzureAIManager
 from llama_index.core.llms import ChatMessage
 
 class PitchTrainer:
@@ -15,7 +15,7 @@ class PitchTrainer:
             chat_mode="context",
             memory=self.chat_memory,
             system_prompt=pitch_helper_system_prompt,
-            llm=llm
+            llm=AzureAIManager.get_llm()
         )
 
     def chat_with_Trainer(self, messages):

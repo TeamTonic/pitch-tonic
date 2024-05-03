@@ -9,7 +9,10 @@ from src.utilities import Transcriber
 from src.utilities import MessageFormatter
 from global_variables import pitch_tester_system_prompt, pitch_tester_easy , pitch_tester_medium , pitch_tester_hard , pitch_tester_extreme, pitch_tester_anq_prompt , pitch_tester_anq_easy , pitch_tester_anq_medium , pitch_tester_anq_hard , pitch_tester_anq_extreme, pitch_trainer_easy, pitch_trainer_extreme, pitch_trainer_system_prompt, pitch_trainer_medium, pitch_helper_system_prompt, pitch_trainer_hard
 from llama_index.core import PromptTemplate
-
+from llama_index.core.llms import ChatMessage, MessageRole
+from src.upsert_retrieve import DocumentRetriever, DocumentIndexer
+from pymongo.mongo_client import MongoClient
+from llama_index.core.indices.vector_store import VectorStoreIndex
 
 class Handler:
     
@@ -32,8 +35,12 @@ class Handler:
         "Given this information, {difficulty} please create a complete evaluation:"
     )
 
-    def __init__(self):
-        self.retriever = AzureCosmosDBMongoDBVectorSearch()
+    def __init__(self, retriever, index):
+        # self.retriever = AzureCosmosDBMongoDBVectorSearch()
+        self.chat_memory = []
+        # self.retriever = DocumentRetriever()
+        self.retriever = retriever
+        self.index = index
 
     def create_question(self, query_str="", difficulty="extreme"):
         """
@@ -58,7 +65,7 @@ class Handler:
         
         return question
 
-    def pitch_helper_handler(audio_input:str, additional_text):
+    def pitch_helper_handler(self, audio_input:str, additional_text):
         """
         Processes audio input through transcription, combines it with any additional text,
         and uses PitchHelper to generate a helpful response in a chat context.
@@ -71,28 +78,28 @@ class Handler:
             str: The combined and processed response from the pitch helper system.
         """
         # Transcribe the audio
-        transcription = Transcriber.transcriber(audio_location=audio_input)['text']
+        transcription = Transcriber.transcribe(audio_location=audio_input)['text']
 
         # Combine transcribed audio with additional text
         combined_text = transcription
         if additional_text:
             combined_text += " " + additional_text
+            
+        # from llama_index.core.llms import ChatMessage, MessageRole
+        current_user_message = ChatMessage(
+            content=combined_text,
+            )
+        query_engine = self.index.as_query_engine(similarity_top_k=5)
+        response = query_engine.query(combined_text)
+        print(response)
+        
 
-        # Initialize PitchHelper and MessageFormatter
-        pitch_helper = PitchHelper()
-        message_formatter = MessageFormatter(pitch_helper.chat_memory)
+        
+        # retriever = DocumentRetriever(azure_conn_string, "demo_vectordb", "paul_graham_essay")
+        
+        self.chat_memory.append(current_user_message)
 
-        # Format the combined text as a user query in the form of ChatMessage
-        chat_messages = message_formatter.format_user_query(combined_text)
-
-        # Use PitchHelper to get responses
-        response = pitch_helper.chat_with_helper(chat_messages)
-
-        # Append system's response to chat history
-        message_formatter.add_system_response(response)
-
-        # Return response
-        return response
+        return response.response
     
     def pitch_test_handler(self, audio_input: str, difficulty: str, additional_text: str = ""):
         """
@@ -159,8 +166,17 @@ class Handler:
     def pitch_train_handler(self, difficulty: str, audio_location:str,  userquery:str = ""):
 
         # Transcribe the audio input
-        transcription = Transcriber.transcriber(audio_location)['text']
-
+        try:
+            transcription = Transcriber.transcribe(audio_location)["text"]
+            # Further processing and handling after transcription
+            print("Transcribed text:", transcription)
+            # More code handling with transcription result...
+        except FileNotFoundError as e:
+            # Handle scenario where file does not exist
+            print(str(e))
+        except Exception as e:
+            # Handle other exceptions that may occur
+            print(f"An error occurred: {str(e)}")
         # Combine transcribed text with any additional user input
         combined_text = transcription
         if userquery:

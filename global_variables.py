@@ -4,12 +4,14 @@ chat_history_tester = []
 DEFAULT_TOKEN_LIMIT_FULL_TEXT_RATIO = 0.75
 DEFAULT_TOKEN_LIMIT_FULL_TEXT = 2000
 token_limit_sumarizer=900
+pitch_tester_token_limit=700
 SUMMARIZE_PROMPT = "The following is a conversation between the user and assistant. Write a concise summary about the contents of this conversation."
 pitch_helper_system_prompt=(
         "You are a chatbot, able to have normal interactions, as well as talk"
         " about an essay discussing Paul Grahams life."
     )
-embedding_model_name = "voyage-finance-2"
+# embedding_model_name = "voyage-finance-2"
+embedding_model_name = 'voyage-large-2'
 
 engine="GPT4"
 
@@ -22,6 +24,7 @@ upload your documents to get started
 article_helper = ("")
 article_trainer = ("")
 article_tester = ("")
+default_system_prompt = ("")
 pitch_tester_system_prompt = ("")
 pitch_tester_easy = ("")
 pitch_tester_medium = ("")
