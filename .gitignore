@@ -1,3 +1,4 @@
+.vscode
 pad.py
 src/jaxtranscribetonic.py
 *.env

@@ -41,7 +41,7 @@ pitch_tester = gr.Interface(
 )
 
 pitch_helper = gr.Interface(
-    fn=Handler.pitch_helper_handler,
+    fn=Handler().pitch_helper_handler,
     inputs=[
         gr.Dropdown(type="value", value="hard", choices=["easy", "medium", "hard", "extreme"]),
         gr.Audio(type="filepath"),

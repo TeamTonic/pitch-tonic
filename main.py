@@ -15,9 +15,7 @@ import tiktoken
 from src.utilities import AzureAIManager, ChatSummarizer, generate_unique_name
 from src.upsert_retrieve import DocumentIndexer, DocumentRetriever
 from src.pitch_handlers import Handler
-import os
-import dotenv
-
+from src.transcribetonic import TranscribeTonic
 
 if __name__ == "__main__":
     dotenv.load_dotenv()
@@ -48,7 +46,7 @@ if __name__ == "__main__":
     Settings.node_parser = MarkdownNodeParser()
     Settings.llm = AzureAIManager()
     Settings.transformations = [
-        Settings.text_splitter, Settings.node_parser , Settings.embed_model 
+        SentenceSplitter(chunk_size=450, chunk_overlap=200), MarkdownNodeParser() , VoyageEmbedding(model_name=embedding_model_name, voyage_api_key=voyage_api_key)
     ]
     base_db_name = "pitch-tonic"
     base_collection_name = "pitch-tonic"
@@ -56,16 +54,23 @@ if __name__ == "__main__":
     # Generate unique names for the session
     mongo_db_name = generate_unique_name(base_db_name)
     mongo_db_collection_name = generate_unique_name(base_collection_name)
+    transformations = [
+        SentenceSplitter(chunk_size=450, chunk_overlap=200), MarkdownNodeParser() , VoyageEmbedding(model_name=embedding_model_name, voyage_api_key=voyage_api_key) 
+    ]
+    vector_store , nodes = DocumentIndexer(mongo_uri=mongo_uri, db_name=mongo_db_name, collection_name=mongo_db_collection_name, transformations=transformations).index_documents()
+    # index = VectorStoreIndex.from_vector_store(vector_store)
+    # index.build_index_from_nodes(nodes=nodes)
 
-    vector_store = DocumentIndexer(mongo_uri=mongo_uri, db_name=mongo_db_name, collection_name=mongo_db_collection_name, transformations=Settings.transformations).index_documents()[0]
-    # vector_store = vector_store.[vector_store]# index = DocumentIndexer(mongo_uri=mongo_uri, db_name=mongo_db_name, collection_name=mongo_db_collection_name, transformations=Settings.transformations).mongodb_store()
-    # node = documents
-    index = VectorStoreIndex.from_vector_store(vector_store)
     retriever = DocumentRetriever(connection_string=mongo_uri, db_name=mongo_db_name, collection_name=mongo_db_collection_name)
+
     chat_history = []
     chat_memory = ChatSummarizer(chat_history=chat_history)
+
+    # init transcription
+    init_transcription = TranscribeTonic().transcribe("./res/audio/Rec.wav")
+
     # init Handler
-    Handler(index=index , retriever=retriever)
+    Handler(index=vector_store , retriever=retriever)
 
     demo = gr.Blocks()
     with demo:
@@ -73,4 +78,3 @@ if __name__ == "__main__":
 
     demo.queue(max_size=5)
     demo.launch(server_name="localhost", show_api=False)
-

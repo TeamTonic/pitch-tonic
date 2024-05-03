@@ -7,12 +7,11 @@ from src.utilities import AzureAIManager
 from llama_index.core.llms import ChatMessage
 
 class PitchHelper:
-    def __init__(self, chat_memory:ChatSummarizer, index:DocumentIndexer, retriever:DocumentRetriever):
+    def __init__(self, chat_memory:ChatSummarizer, index:DocumentRetriever):
         """Initializes PitchHelper with necessary components for handling chat sessions with document context."""
         self.chat_memory = chat_memory
         self.index = index
-        self.retriever = retriever
-        self.chat_engine = self.retriever.as_chat_engine(
+        self.chat_engine = self.index.as_chat_engine(
             chat_mode="context",
             memory=self.chat_memory,
             system_prompt=pitch_helper_system_prompt,
