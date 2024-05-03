@@ -3,12 +3,51 @@
 from src.transcribetonic import TranscribeTonic
 from src.chat_summary_memory_buffer import ChatSummaryMemoryBuffer
 from llama_index.core.llms import ChatMessage, MessageRole
-from llama_index.llms.openai import OpenAI as OpenAiLlm
+# from llama_index.llms.openai import OpenAI as OpenAiLlm
 import tiktoken
+from llama_index.core.utils import get_tokenizer
 from global_variables import model, token_limit_full_text , token_limit_sumarizer
+from typing import List
+from llama_index.llms.azure_openai import AzureOpenAI
+from global_variables import model, engine
+import os
+import dotenv
+import uuid
+
+def generate_unique_name(base_name: str = "Tonic") -> str:
+    """ Generate a unique name using a base name and a random UUID. """
+    unique_suffix = uuid.uuid4().hex[:6]  
+    return f"{base_name}_{unique_suffix}"
+
+class AzureAIManager:
+    def __init__(self):
+        dotenv.load_dotenv()  # Load environment variables
+
+        # Retrieve environment variables
+        self.azure_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+        self.azure_api_key = os.getenv('AZURE_OPENAI_API_KEY')
+        self.azure_api_version = os.getenv('AZURE_OPENAI_VERSION')
+
+        # Hardcoded or retrieved from environment
+        self.engine = engine
+        self.model = os.getenv('OPENAI_MODEL', model)  
+        self.temperature = float(os.getenv('OPENAI_TEMPERATURE', '1.0')) 
+
+        # Initialize the Azure OpenAI API
+        self.llm = AzureOpenAI(
+            engine=self.engine,
+            model=self.model,
+            temperature=self.temperature,
+            api_key=self.azure_api_key,
+            azure_endpoint=self.azure_endpoint,
+            api_version=self.azure_api_version,
+        )
+
+    def get_llm(self):
+        return self.llm
 
 class ChatSummarizer:
-    def __init__(self, chat_history):
+    def __init__(self, chat_history:List[ChatMessage]):
         """
         Initialize the ChatSummarizer with a model, tokenizer, and optional initial chat history.
         
@@ -19,12 +58,13 @@ class ChatSummarizer:
             token_limit (int): Token limit for the chat memory buffer. Defaults to 900.
         """
         self.model = model
-        self.tokenizer = tokenizer_fn
-        self.summarizer_llm = OpenAiLlm(model_name=self.model, max_tokens=token_limit_sumarizer)
+        self.tokenizer = get_tokenizer()
+        self.llm = AzureAIManager().get_llm()
+        self.chat_history = chat_history
         self.memory = ChatSummaryMemoryBuffer.from_defaults(
             chat_history=chat_history,
-            summarizer_llm=self.summarizer_llm,
-            token_limit_full_text=token_limit_full_text,
+            llm=self.llm,
+            token_limit=token_limit_full_text,
             tokenizer_fn=self.tokenizer,
         )
 
@@ -47,14 +87,13 @@ class ChatSummarizer:
         for message in new_messages:
             self.memory.put(message)
 
-class Transcriber:   
-    def transcriber(audio_location:str):
+class Transcriber:
+    @staticmethod
+    def transcribe(audio_location:str):
         tonic_transcriber = TranscribeTonic()
-        results:str = tonic_transcriber.transcribe(audio_location)
-        # debug print print(results)
-        results = {"text":results}
-        return results
-
+        transcription:str = tonic_transcriber.transcribe(audio_location)
+        print(transcription)
+        return {"text": transcription}
 
 class MessageFormatter:
     def __init__(self, summarizer):

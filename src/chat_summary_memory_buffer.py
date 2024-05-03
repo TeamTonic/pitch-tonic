@@ -1,6 +1,6 @@
 # ./src/chat_summary_memory_buffer.py
 # from : https://github.com/run-llama/llama_index/tree/7e11ea22e89143561db8d719c962a86dc0615124/llama-index-core/llama_index/core/memory
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pydantic.fields import PrivateAttr
 
@@ -11,17 +11,26 @@ from llama_index.core.memory.types import DEFAULT_CHAT_STORE_KEY, BaseMemory
 from llama_index.core.storage.chat_store import BaseChatStore, SimpleChatStore
 from llama_index.core.utils import get_tokenizer
 from global_variables import DEFAULT_TOKEN_LIMIT_FULL_TEXT, DEFAULT_TOKEN_LIMIT_FULL_TEXT_RATIO, SUMMARIZE_PROMPT
+import json
+import logging
+
+DEFAULT_TOKEN_LIMIT_RATIO = DEFAULT_TOKEN_LIMIT_FULL_TEXT_RATIO
+DEFAULT_TOKEN_LIMIT = DEFAULT_TOKEN_LIMIT_FULL_TEXT
+SUMMARIZE_PROMPT = "The following is a conversation between the user and assistant. Write a concise summary about the contents of this conversation."
+
+logger = logging.getLogger(__name__)
+
 
 # TODO: Add option for last N user/assistant history interactions instead of token limit
 class ChatSummaryMemoryBuffer(BaseMemory):
     """Buffer for storing chat history that uses the full text for the latest
-    {token_limit_full_text}.
+    {token_limit}.
 
-    All older messages are iteratively summarized using the {summarizer_llm} provided, with
-    the max number of tokens defined by the {summarizer_llm}.
+    All older messages are iteratively summarized using the {llm} provided, with
+    the max number of tokens defined by the {llm}.
 
     User can specify whether initial tokens (usually a system prompt)
-    should be counted as part of the {token_limit_full_text}
+    should be counted as part of the {token_limit}
     using the parameter {count_initial_tokens}.
 
     This buffer is useful to retain the most important information from a
@@ -29,9 +38,9 @@ class ChatSummaryMemoryBuffer(BaseMemory):
     of each request to the LLM.
     """
 
-    token_limit_full_text: int
+    token_limit: int
     count_initial_tokens: bool = False
-    summarizer_llm: Optional[LLM] = None
+    llm: Optional[LLM] = None
     summarize_prompt: Optional[str] = None
     tokenizer_fn: Callable[[str], List] = Field(
         # NOTE: mypy does not handle the typing here well, hence the cast
@@ -48,8 +57,8 @@ class ChatSummaryMemoryBuffer(BaseMemory):
     def validate_memory(cls, values: dict) -> dict:
         """Validate the memory."""
         # Validate token limits
-        token_limit_full_text = values.get("token_limit_full_text", -1)
-        if token_limit_full_text < 1:
+        token_limit = values.get("token_limit", -1)
+        if token_limit < 1:
             raise ValueError(
                 "Token limit for full-text messages must be set and greater than 0."
             )
@@ -65,10 +74,10 @@ class ChatSummaryMemoryBuffer(BaseMemory):
     def from_defaults(
         cls,
         chat_history: Optional[List[ChatMessage]] = None,
-        summarizer_llm: Optional[LLM] = None,
+        llm: Optional[LLM] = None,
         chat_store: Optional[BaseChatStore] = None,
         chat_store_key: str = DEFAULT_CHAT_STORE_KEY,
-        token_limit_full_text: Optional[int] = None,
+        token_limit: Optional[int] = None,
         tokenizer_fn: Optional[Callable[[str], List]] = None,
         summarize_prompt: Optional[str] = None,
         count_initial_tokens: bool = False,
@@ -76,13 +85,11 @@ class ChatSummaryMemoryBuffer(BaseMemory):
         """Create a chat memory buffer from an LLM
         and an initial list of chat history messages.
         """
-        if summarizer_llm is not None:
-            context_window = summarizer_llm.metadata.context_window
-            token_limit_full_text = token_limit_full_text or int(
-                context_window * DEFAULT_TOKEN_LIMIT_FULL_TEXT_RATIO
-            )
-        elif token_limit_full_text is None:
-            token_limit_full_text = DEFAULT_TOKEN_LIMIT_FULL_TEXT
+        if llm is not None:
+            context_window = llm.metadata.context_window
+            token_limit = token_limit or int(context_window * DEFAULT_TOKEN_LIMIT_RATIO)
+        elif token_limit is None:
+            token_limit = DEFAULT_TOKEN_LIMIT
 
         chat_store = chat_store or SimpleChatStore()
         chat_history = chat_history or []
@@ -90,8 +97,8 @@ class ChatSummaryMemoryBuffer(BaseMemory):
 
         summarize_prompt = summarize_prompt or SUMMARIZE_PROMPT
         return cls(
-            summarizer_llm=summarizer_llm,
-            token_limit_full_text=token_limit_full_text,
+            llm=llm,
+            token_limit=token_limit,
             # TODO: Check if we can get the tokenizer from the llm
             tokenizer_fn=tokenizer_fn or get_tokenizer(),
             summarize_prompt=summarize_prompt,
@@ -114,14 +121,32 @@ class ChatSummaryMemoryBuffer(BaseMemory):
         return self.dict()
 
     @classmethod
-    def from_string(cls, json_str: str) -> "ChatMemoryBuffer":
-        raise NotImplementedError("This is not yet supported.")
+    def from_string(cls, json_str: str, **kwargs: Any) -> "ChatSummaryMemoryBuffer":
+        """Create a chat memory buffer from a string."""
+        dict_obj = json.loads(json_str)
+        return cls.from_dict(dict_obj, **kwargs)
 
     @classmethod
     def from_dict(
         cls, data: Dict[str, Any], **kwargs: Any
     ) -> "ChatSummaryMemoryBuffer":
-        raise NotImplementedError("This is not yet supported.")
+        from llama_index.core.storage.chat_store.loading import load_chat_store
+
+        # NOTE: this handles backwards compatibility with the old chat history
+        if "chat_history" in data:
+            chat_history = data.pop("chat_history")
+            chat_store = SimpleChatStore(store={DEFAULT_CHAT_STORE_KEY: chat_history})
+            data["chat_store"] = chat_store
+        elif "chat_store" in data:
+            chat_store = data.pop("chat_store")
+            chat_store = load_chat_store(chat_store)
+            data["chat_store"] = chat_store
+
+        # NOTE: The llm will have to be set manually in kwargs
+        if "llm" in data:
+            data.pop("llm")
+
+        return cls(**data, **kwargs)
 
     def get(self, initial_token_count: int = 0, **kwargs: Any) -> List[ChatMessage]:
         """Get chat history."""
@@ -131,7 +156,7 @@ class ChatSummaryMemoryBuffer(BaseMemory):
 
         # Give the user the choice whether to count the system prompt or not
         if self.count_initial_tokens:
-            if initial_token_count > self.token_limit_full_text:
+            if initial_token_count > self.token_limit:
                 raise ValueError("Initial token count exceeds token limit")
             self._token_count = initial_token_count
 
@@ -140,7 +165,7 @@ class ChatSummaryMemoryBuffer(BaseMemory):
             chat_history_to_be_summarized,
         ) = self._split_messages_summary_or_full_text(chat_history)
 
-        if self.summarizer_llm is None or len(chat_history_to_be_summarized) == 0:
+        if self.llm is None or len(chat_history_to_be_summarized) == 0:
             # Simply remove the message that don't fit the buffer anymore
             updated_history = chat_history_full_text
         else:
@@ -186,16 +211,17 @@ class ChatSummaryMemoryBuffer(BaseMemory):
 
     def _split_messages_summary_or_full_text(
         self, chat_history: List[ChatMessage]
-    ) -> (List[ChatMessage], List[ChatMessage]):
+    ) -> Tuple[List[ChatMessage], List[ChatMessage]]:
         """Determine which messages will be included as full text,
-        and which will have to be summarized by the summarizer_llm.
+        and which will have to be summarized by the llm.
         """
         chat_history_full_text = []
         message_count = len(chat_history)
         while (
             message_count > 0
-            and self._token_count + self._token_count_for_messages([chat_history[-1]])
-            <= self.token_limit_full_text
+            and self.get_token_count()
+            + self._token_count_for_messages([chat_history[-1]])
+            <= self.token_limit
         ):
             # traverse the history in reverse order, when token limit is about to be
             # exceeded, we stop, so remaining messages are summarized
@@ -204,12 +230,16 @@ class ChatSummaryMemoryBuffer(BaseMemory):
             message_count -= 1
 
         chat_history_to_be_summarized = chat_history.copy()
+        self._handle_assistant_and_tool_messages(
+            chat_history_full_text, chat_history_to_be_summarized
+        )
+
         return chat_history_full_text, chat_history_to_be_summarized
 
     def _summarize_oldest_chat_history(
         self, chat_history_to_be_summarized: List[ChatMessage]
     ) -> ChatMessage:
-        """Use the summarizer_llm to summarize the messages that do not fit into the
+        """Use the llm to summarize the messages that do not fit into the
         buffer.
         """
         # Only summarize if there is new information to be summarized
@@ -226,7 +256,7 @@ class ChatSummaryMemoryBuffer(BaseMemory):
         # TODO: Maybe it is better to pass a list of history to llm
         return ChatMessage(
             role=MessageRole.SYSTEM,
-            content=self.summarizer_llm.chat([summarize_prompt]).message.content,
+            content=self.llm.chat([summarize_prompt]).message.content,
         )
 
     def _get_prompt_to_summarize(
@@ -241,3 +271,22 @@ class ChatSummaryMemoryBuffer(BaseMemory):
         prompt += '"\n\n'
         prompt += self.summarize_prompt
         return prompt
+
+    def _handle_assistant_and_tool_messages(
+        self,
+        chat_history_full_text: List[ChatMessage],
+        chat_history_to_be_summarized: List[ChatMessage],
+    ) -> Tuple[List[ChatMessage], List[ChatMessage]]:
+        """To avoid breaking API's, we need to ensure the following.
+
+        - the first message cannot be ASSISTANT
+        - ASSISTANT/TOOL should be considered in pairs
+        Therefore, we switch messages to summarized list until the first message is
+        not an ASSISTANT or TOOL message.
+        """
+        if len(chat_history_full_text) > 0:
+            while chat_history_full_text[0].role in (
+                MessageRole.ASSISTANT,
+                MessageRole.TOOL,
+            ):
+                chat_history_to_be_summarized.append(chat_history_full_text.pop(0))

@@ -16,3 +16,6 @@ llama-index-vector-stores-azurecosmosmongo
 llama-index-storage-docstore-mongodb
 markdown
 pymongo
+pillow
+python-pptx
+docx2txt

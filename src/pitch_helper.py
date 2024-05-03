@@ -3,19 +3,20 @@
 from src.utilities import ChatSummarizer
 from src.upsert_retrieve import DocumentRetriever, DocumentIndexer
 from global_variables import pitch_helper_system_prompt
-from src.azurellm import llm
+from src.utilities import AzureAIManager
 from llama_index.core.llms import ChatMessage
 
 class PitchHelper:
-    def __init__(self):
+    def __init__(self, chat_memory:ChatSummarizer, index:DocumentIndexer, retriever:DocumentRetriever):
         """Initializes PitchHelper with necessary components for handling chat sessions with document context."""
-        self.chat_memory = ChatSummarizer()
-        self.index = DocumentRetriever()
-        self.chat_engine = self.index.as_chat_engine(
+        self.chat_memory = chat_memory
+        self.index = index
+        self.retriever = retriever
+        self.chat_engine = self.retriever.as_chat_engine(
             chat_mode="context",
             memory=self.chat_memory,
             system_prompt=pitch_helper_system_prompt,
-            llm=llm
+            llm=AzureAIManager.get_llm()
         )
 
     def chat_with_helper(self, messages):
