@@ -113,3 +113,19 @@ pitch_trainer_hard = (
 pitch_trainer_extreme = (
     "Use the context provided to simulate a high pressure pitch situation asking difficult and complex questions about technical details."
 )
+
+pitch_evaluator_easy = (
+    "Assess the pitch for clarity and enthusiasm. Optimize for Engagement."
+)
+
+pitch_evaluator_medium = (
+    "Assess the pitch above for details regarding practical applications and benefits. provide mild objections and your reasoning for these objections."
+)
+
+pitch_evaluator_hard = (
+    "assess the pitch above for detailed information, including data and figures. ask complex questions based on the context provided."
+)
+
+pitch_evaluator_extreme = (
+    "Use the context provided to simulate a high pressure pitch situation asking difficult and complex questions about technical details."
+)

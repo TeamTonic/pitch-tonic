@@ -1,5 +1,8 @@
 # main.py
-
+from global_variables import token_limit_sumarizer
+from llama_index.core.base.llms.types import (
+    ChatMessage,
+    )
 from src.interface import pitch_helper , pitch_trainer , pitch_tester
 from src.utilities import AzureAIManager
 import gradio as gr
@@ -8,14 +11,17 @@ import dotenv
 import logging  
 from llama_index.embeddings.voyageai import VoyageEmbedding
 from llama_index.core.node_parser import SentenceSplitter, MarkdownNodeParser
-# from llama_index.core.extractors import KeywordExtractor 
+from llama_index.core.memory.chat_summary_memory_buffer import  ChatSummaryMemoryBuffer
 from llama_index.core import Settings, VectorStoreIndex, StorageContext
-from global_variables import embedding_model_name , model, default_system_prompt
+from global_variables import embedding_model_name , model, default_system_prompt, token_limit_sumarizer
 import tiktoken
-from src.utilities import AzureAIManager, ChatSummarizer, generate_unique_name
+from src.utilities import AzureAIManager, generate_unique_name
 from src.upsert_retrieve import DocumentIndexer, DocumentRetriever
-from src.pitch_handlers import Handler
+# from src.pitch_handlers import Handler
+# from src.utilities import Ha
 from src.transcribetonic import TranscribeTonic
+import voyageai
+from voyageai import Client as VoyageClient
 
 if __name__ == "__main__":
     dotenv.load_dotenv()
@@ -29,8 +35,10 @@ if __name__ == "__main__":
     logger.addHandler(ch)
 
     dotenv.load_dotenv()
-
     voyage_api_key = os.environ.get("VOYAGE_API_KEY")
+    voyageai.api_key = voyage_api_key  
+    voyage_client = VoyageClient(os.getenv("VOYAGE_API_KEY"))
+
     aoai_endpoint = os.environ['AZURE_OPENAI_ENDPOINT']
     aoai_key = os.environ['AZURE_OPENAI_API_KEY']   
     aoai_version = os.environ['AZURE_OPENAI_VERSION']  
@@ -41,7 +49,7 @@ if __name__ == "__main__":
     Settings.chunk_size = 450
     Settings.chunk_overlap = 250
     Settings.embed_model = VoyageEmbedding(model_name=embedding_model_name, voyage_api_key=voyage_api_key)
-    Settings.tokenizer = tiktoken.encoding_for_model(model_name=model).encode 
+    Settings.tokenizer = voyage_client.tokenize
     Settings.text_splitter = SentenceSplitter(chunk_size=450, chunk_overlap=200)
     Settings.node_parser = MarkdownNodeParser()
     Settings.llm = AzureAIManager()
@@ -54,23 +62,27 @@ if __name__ == "__main__":
     # Generate unique names for the session
     mongo_db_name = generate_unique_name(base_db_name)
     mongo_db_collection_name = generate_unique_name(base_collection_name)
-    transformations = [
-        SentenceSplitter(chunk_size=450, chunk_overlap=200), MarkdownNodeParser() , VoyageEmbedding(model_name=embedding_model_name, voyage_api_key=voyage_api_key) 
-    ]
-    vector_store , nodes = DocumentIndexer(mongo_uri=mongo_uri, db_name=mongo_db_name, collection_name=mongo_db_collection_name, transformations=transformations).index_documents()
-    # index = VectorStoreIndex.from_vector_store(vector_store)
-    # index.build_index_from_nodes(nodes=nodes)
+    
 
+    # Init Chat History & Mempory
+    chat_history = [ChatMessage()]
+    chat_memory = ChatSummaryMemoryBuffer(
+        token_limit=token_limit_sumarizer,
+        chat_history=chat_history,
+        )
+
+    # Init Vector Store
+    document_indexer = DocumentIndexer(mongo_uri=mongo_uri, db_name=mongo_db_name, collection_name=mongo_db_collection_name)
+    vector_store = document_indexer.index_documents()
+
+    # Init Retriever
     retriever = DocumentRetriever(connection_string=mongo_uri, db_name=mongo_db_name, collection_name=mongo_db_collection_name)
-
-    chat_history = []
-    chat_memory = ChatSummarizer(chat_history=chat_history)
 
     # init transcription
     init_transcription = TranscribeTonic().transcribe("./res/audio/Rec.wav")
 
     # init Handler
-    Handler(index=vector_store , retriever=retriever)
+    # Handler(retriever=retriever)
 
     demo = gr.Blocks()
     with demo:
