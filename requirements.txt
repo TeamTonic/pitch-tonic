@@ -3,6 +3,7 @@ numpy
 tiktoken
 torch==2.2.2
 transformers
+accelerate
 optimum
 python-dotenv
 gradio
@@ -13,10 +14,11 @@ llama-index-llms-azure-openai
 llama-index-embeddings-azure-openai
 llama-index-embeddings-voyageai
 llama-index-vector-stores-azurecosmosmongo
-llama-index-storage-docstore-mongodb
+# llama-index-storage-docstore-mongodb
 markdown
 pymongo
 pillow
 python-pptx
 docx2txt
 pydantic
+voyageai

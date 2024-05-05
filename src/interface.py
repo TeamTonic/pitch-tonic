@@ -2,13 +2,13 @@
 
 import gradio as gr
 from src.transcribetonic import TranscribeTonic
-from src.pitch_handlers import Handler
+from src.utilities import MessageProcessor
 from global_variables import title , description , article_trainer , article_helper , article_tester
 
 transcriber = TranscribeTonic()
 
 pitch_trainer = gr.Interface(
-    fn=Handler.pitch_train_handler,
+    fn=MessageProcessor.pitch_train_handler,
     inputs=[
         gr.Dropdown(type="value", value="hard", choices=["easy", "medium", "hard", "extreme"]),
         gr.Audio(label="Use Your Microphone For Best Results" , type= "filepath"),
@@ -25,7 +25,7 @@ pitch_trainer = gr.Interface(
 
 
 pitch_tester = gr.Interface(
-    fn=Handler.pitch_test_handler,
+    fn=MessageProcessor.pitch_test_handler,
     inputs=[
         gr.Dropdown(type="value", value="hard", choices=["easy", "medium", "hard", "extreme"]),
         gr.Audio(label="Use Your Microphone For Best Results" , type= "filepath"),
@@ -41,7 +41,7 @@ pitch_tester = gr.Interface(
 )
 
 pitch_helper = gr.Interface(
-    fn=Handler().pitch_helper_handler,
+    fn=MessageProcessor.pitch_helper_handler,
     inputs=[
         gr.Dropdown(type="value", value="hard", choices=["easy", "medium", "hard", "extreme"]),
         gr.Audio(type="filepath"),
